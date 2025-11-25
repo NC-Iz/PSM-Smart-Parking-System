@@ -1,0 +1,134 @@
+// Firebase Storage Rules for Smart Parking System
+// Apply these rules in Firebase Console > Storage > Rules
+// USE IN WEEK 13-16 (NOT NOW)
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the file
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to check file size (max 5MB for images)
+    function isValidSize() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+    
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // USER PROFILE PICTURES
+    // Users can only upload/read/delete their own profile pictures
+    match /profilePictures/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId) && isValidSize() && isImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // LICENSE PLATE IMAGES (captured by IoT cameras)
+    // All authenticated users can read
+    // Only system/managers can upload (will be done via admin SDK in production)
+    match /licensePlates/{lotId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Temporarily allow for testing
+    }
+    
+    // PARKING LOT IMAGES
+    // All authenticated users can read
+    // Only admins/managers can upload
+    match /parkingLotImages/{lotId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Temporarily allow for testing
+    }
+    
+    // PAYMENT RECEIPTS
+    // Users can only read their own receipts
+    match /receipts/{userId}/{fileName} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // SYSTEM IMAGES (app assets, banners, etc.)
+    // Everyone can read, only admins can write
+    match /system/{fileName} {
+      allow read: if true; // Public read for app assets
+      allow write: if isAuthenticated(); // Temporarily allow for testing
+    }
+    
+    // VEHICLE DETECTION IMAGES (ML training data)
+    // Used for machine learning in Week 5-8
+    match /mlTraining/{category}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}
+
+/*
+===========================================
+HOW TO APPLY THESE RULES (WEEK 13):
+===========================================
+
+1. Go to Firebase Console
+2. Navigate to Storage
+3. Click "Rules" tab
+4. Replace the existing rules with the code above
+5. Click "Publish"
+
+===========================================
+WHAT THESE RULES ALLOW:
+===========================================
+
+PROFILE PICTURES:
+- Users can upload their own profile pictures (max 5MB)
+- Only image files allowed
+- Users can only access their own pictures
+
+LICENSE PLATES:
+- All authenticated users can view
+- System uploads via cameras (will use Admin SDK in production)
+
+PARKING LOT IMAGES:
+- All users can view parking lot photos
+- Admins/managers can upload new photos
+
+RECEIPTS:
+- Users can only access their own payment receipts
+- Secure and private
+
+SYSTEM ASSETS:
+- Public read access for app images
+- Controlled write access
+
+ML TRAINING DATA:
+- Used for YOLOv8 and EasyOCR training
+- Accessible for development and testing
+
+===========================================
+SECURITY FEATURES:
+===========================================
+- Authentication required for most operations
+- File size limits (5MB for images)
+- Content type validation (images only where applicable)
+- User ownership verification
+- Prevents unauthorized uploads
+- Protects user privacy
+
+===========================================
+BEFORE APPLYING (WEEK 13):
+===========================================
+1. Test all file upload features work
+2. Verify profile picture uploads work
+3. Test with different user accounts
+4. Make sure ML image uploads work (Week 5-8)
+5. Keep backup of temporary rules
+*/

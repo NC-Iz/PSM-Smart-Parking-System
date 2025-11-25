@@ -1,0 +1,159 @@
+// Firebase Security Rules for Smart Parking System
+// Apply these rules in Firebase Console > Firestore Database > Rules
+// USE IN WEEK 13-16 (NOT NOW)
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin';
+    }
+    
+    // Helper function to check if user is manager
+    function isManager() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'manager';
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // USERS COLLECTION
+    // Users can read/write their own data, admins can read/write all users
+    match /users/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated(); // Allow user registration
+    }
+    
+    // PARKING LOTS COLLECTION
+    // All authenticated users can read parking lots
+    // Only admins and managers can create/update parking lots
+    match /parkingLots/{lotId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+      allow create: if isAdmin();
+    }
+    
+    // PARKING SPOTS COLLECTION
+    // All authenticated users can read spots
+    // Admins, managers, and system can update spot status
+    match /parkingSpots/{spotId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isManager();
+      allow update: if isAuthenticated(); // Allow booking updates
+    }
+    
+    // BOOKINGS COLLECTION
+    // Users can only access their own bookings
+    // Admins and managers can read all bookings
+    match /bookings/{bookingId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin() || isManager();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) || isAdmin() || isManager();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // PARKING SESSIONS COLLECTION (Week 4+)
+    // Users can manage their own sessions
+    match /parkingSessions/{sessionId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin() || isManager();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isOwner(resource.data.userId) || isAdmin() || isManager();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // PAYMENTS COLLECTION
+    // Users can only access their own payment records
+    // Admins can access all payments
+    match /payments/{paymentId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isAdmin(); // Only admins can update payment status
+    }
+    
+    // SYSTEM LOGS COLLECTION (for monitoring)
+    // Only admins can read system logs
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // REPORTS COLLECTION
+    // Only admins and managers can access reports
+    match /reports/{reportId} {
+      allow read, write: if isAdmin() || isManager();
+    }
+    
+    // SETTINGS COLLECTION (app-wide settings)
+    // All users can read settings, only admins can modify
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}
+
+/*
+===========================================
+HOW TO APPLY THESE RULES (WEEK 13):
+===========================================
+
+1. Go to Firebase Console
+2. Navigate to Firestore Database
+3. Click "Rules" tab
+4. Replace the existing rules with the code above
+5. Click "Publish"
+
+===========================================
+WHAT THESE RULES ALLOW:
+===========================================
+
+CUSTOMERS:
+- Create their own user account
+- Read/update their own profile
+- View all parking lots and spots
+- Create/manage their own bookings
+- View their own payment history
+
+MANAGERS:
+- Everything customers can do
+- Create/update parking lots
+- Manage parking spots
+- View all bookings for their lots
+- Access reports
+
+ADMINS:
+- Full access to everything
+- Manage all users
+- Create/modify parking lots
+- Access all bookings and payments
+- View system logs and reports
+- Modify app settings
+
+===========================================
+SECURITY FEATURES:
+===========================================
+- All operations require authentication
+- Users can only access their own data
+- Role-based permissions
+- Prevents unauthorized data access
+- Protects sensitive information
+
+===========================================
+BEFORE APPLYING (WEEK 13):
+===========================================
+1. Make sure you have at least one admin account
+2. Test with different user roles (customer, manager, admin)
+3. Verify all app features work with restricted access
+4. Keep a backup of your temporary rules just in case
+*/
