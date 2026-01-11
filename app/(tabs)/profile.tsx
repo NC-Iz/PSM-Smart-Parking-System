@@ -1,5 +1,5 @@
 // File: app/(tabs)/profile.tsx
-// Create this file to replace or add to your tabs
+// REPLACE your existing profile.tsx with this
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -14,10 +14,7 @@ export default function ProfileScreen() {
       'Logout',
       'Are you sure you want to logout?',
       [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
+        { text: 'Cancel', style: 'cancel' },
         {
           text: 'Logout',
           style: 'destructive',
@@ -49,188 +46,194 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.scrollContainer}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Profile</Text>
+      </View>
+
+      <ScrollView style={styles.scrollContainer}>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
-            <Ionicons name="person" size={60} color="#fff" />
+            <Ionicons name="person" size={48} color="#fff" />
           </View>
-          <Text style={styles.name}>{user.fullName}</Text>
-          <Text style={styles.email}>{user.email}</Text>
+          <Text style={styles.userName}>{user.fullName}</Text>
+          <TouchableOpacity style={styles.editButton}>
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* User Info Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Account Information</Text>
-          
-          <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={20} color="#7f8c8d" />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>{user.phone}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="car-outline" size={20} color="#7f8c8d" />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>License Plate</Text>
-              <Text style={styles.infoValue}>{user.licensePlate}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#7f8c8d" />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Account Type</Text>
-              <Text style={[styles.infoValue, styles.badge]}>
-                {user.userType.toUpperCase()}
-              </Text>
+        {/* Vehicle Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Vehicle</Text>
+          <View style={styles.vehicleBox}>
+            <Ionicons name="car" size={32} color="#2c3e50" />
+            <View style={styles.vehicleInfo}>
+              <Text style={styles.vehicleLabel}>License Plate</Text>
+              <Text style={styles.vehicleValue}>{user.licensePlate}</Text>
             </View>
           </View>
         </View>
 
-        {/* Wallet Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Wallet & Statistics</Text>
-          
+        {/* Wallets & Statistics Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Wallets & Statistics</Text>
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>RM {user.walletBalance.toFixed(2)}</Text>
               <Text style={styles.statLabel}>Wallet Balance</Text>
             </View>
-            
+            <View style={styles.statDivider} />
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{user.totalBookings}</Text>
-              <Text style={styles.statLabel}>Total Bookings</Text>
+              <Text style={styles.statLabel}>Total Parkings</Text>
             </View>
           </View>
         </View>
 
         {/* Action Buttons */}
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="create-outline" size={24} color="#3498db" />
-          <Text style={styles.actionButtonText}>Edit Profile</Text>
-          <Ionicons name="chevron-forward" size={24} color="#95a5a6" />
-        </TouchableOpacity>
+        <View style={styles.actionsContainer}>
+          <TouchableOpacity style={styles.actionButton}>
+            <View style={styles.actionLeft}>
+              <Ionicons name="wallet-outline" size={24} color="#2c3e50" />
+              <Text style={styles.actionText}>Top Up Wallet</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#7f8c8d" />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="wallet-outline" size={24} color="#27ae60" />
-          <Text style={styles.actionButtonText}>Top Up Wallet</Text>
-          <Ionicons name="chevron-forward" size={24} color="#95a5a6" />
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton}>
+            <View style={styles.actionLeft}>
+              <Ionicons name="time-outline" size={24} color="#2c3e50" />
+              <Text style={styles.actionText}>Parking History</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#7f8c8d" />
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="time-outline" size={24} color="#f39c12" />
-          <Text style={styles.actionButtonText}>Parking History</Text>
-          <Ionicons name="chevron-forward" size={24} color="#95a5a6" />
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push('/notifications')}
+          >
+            <View style={styles.actionLeft}>
+              <Ionicons name="notifications-outline" size={24} color="#2c3e50" />
+              <Text style={styles.actionText}>Notification</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#7f8c8d" />
+          </TouchableOpacity>
+        </View>
 
         {/* Logout Button */}
         <TouchableOpacity 
           style={styles.logoutButton}
           onPress={handleLogout}
         >
-          <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
-          <Text style={styles.logoutButtonText}>Logout</Text>
+          <Text style={styles.logoutButtonText}>Log Out</Text>
         </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
   container: {
+    flex: 1,
+    backgroundColor: '#f5f6fa',
+  },
+  header: {
+    backgroundColor: '#3498db',
+    padding: 20,
+    paddingTop: 50,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  scrollContainer: {
     flex: 1,
     padding: 20,
   },
-  header: {
+  profileCard: {
+    backgroundColor: '#e3f2fd',
+    borderRadius: 15,
+    padding: 25,
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 30,
+    marginBottom: 20,
   },
   avatarContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#3498db',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 15,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 5,
-  },
-  email: {
-    fontSize: 16,
-    color: '#7f8c8d',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  cardTitle: {
-    fontSize: 18,
+  userName: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginBottom: 15,
   },
-  infoRow: {
+  editButton: {
+    backgroundColor: '#3498db',
+    paddingVertical: 8,
+    paddingHorizontal: 25,
+    borderRadius: 20,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 15,
+  },
+  vehicleBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ecf0f1',
+    padding: 15,
+    backgroundColor: '#f5f6fa',
+    borderRadius: 10,
   },
-  infoContent: {
+  vehicleInfo: {
     marginLeft: 15,
-    flex: 1,
   },
-  infoLabel: {
+  vehicleLabel: {
     fontSize: 12,
-    color: '#95a5a6',
-    marginBottom: 2,
+    color: '#7f8c8d',
+    marginBottom: 4,
   },
-  infoValue: {
-    fontSize: 16,
-    color: '#2c3e50',
-    fontWeight: '500',
-  },
-  badge: {
-    backgroundColor: '#3498db',
-    color: '#fff',
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    fontSize: 12,
+  vehicleValue: {
+    fontSize: 18,
     fontWeight: 'bold',
-    marginTop: 5,
+    color: '#2c3e50',
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statBox: {
     alignItems: 'center',
   },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#e1e8ed',
+    marginHorizontal: 20,
+  },
   statValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#3498db',
     marginBottom: 5,
@@ -238,49 +241,48 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  actionsContainer: {
+    marginTop: 5,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
-    padding: 15,
+    padding: 18,
     borderRadius: 10,
     marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
   },
-  actionButtonText: {
-    flex: 1,
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionText: {
     fontSize: 16,
     color: '#2c3e50',
     marginLeft: 15,
+    fontWeight: '500',
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#e74c3c',
     padding: 15,
-    borderRadius: 10,
+    borderRadius: 25,
+    alignItems: 'center',
     marginTop: 20,
-    marginBottom: 40,
-    borderWidth: 1,
-    borderColor: '#e74c3c',
+    marginBottom: 30,
   },
   logoutButtonText: {
+    color: '#fff',
     fontSize: 16,
-    color: '#e74c3c',
     fontWeight: 'bold',
-    marginLeft: 10,
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 20,
+    marginTop: 100,
     textAlign: 'center',
   },
   loginButton: {
@@ -289,6 +291,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 10,
     alignSelf: 'center',
+    marginTop: 20,
   },
   loginButtonText: {
     color: '#fff',
