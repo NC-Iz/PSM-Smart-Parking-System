@@ -1,5 +1,5 @@
 // File: src/services/parkingService.ts
-// CREATE this NEW file in src/services/ folder
+// UPDATED with calculateLiveCharges function
 
 import {
     collection,
@@ -50,6 +50,7 @@ export interface ParkingSpot {
   lastUpdated: any;
   esp32CamId: string | null;
   coordinates: { x: number; y: number };
+  licensePlate?: string;  // Added for ANPR
 }
 
 export interface ParkingSession {
@@ -275,4 +276,26 @@ export const formatDuration = (startTime: Date, endTime: Date): string => {
   const hours = Math.floor(durationMs / (1000 * 60 * 60));
   const minutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
   return `${hours}h ${minutes}m`;
+};
+
+// ✅ NEW FUNCTION: Calculate live charges for active parking session
+export const calculateLiveCharges = (startTime: Date, hourlyRate: number) => {
+  const now = new Date();
+  const diffMs = now.getTime() - startTime.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  
+  const hours = Math.floor(diffSeconds / 3600);
+  const minutes = Math.floor((diffSeconds % 3600) / 60);
+  const seconds = diffSeconds % 60;
+  
+  // Calculate fee based on elapsed time
+  const totalHours = diffSeconds / 3600;
+  const fee = totalHours * hourlyRate;
+  
+  return {
+    hours,
+    minutes,
+    seconds,
+    fee: Math.max(0, fee) // Ensure non-negative
+  };
 };
