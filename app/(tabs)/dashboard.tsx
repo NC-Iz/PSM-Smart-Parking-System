@@ -209,7 +209,6 @@ export default function DashboardScreen() {
             <Text style={styles.vehicleTitle}>My Vehicle</Text>
             <View style={styles.vehicleInfo}>
               <Text style={styles.licensePlate}>{user?.licensePlate}</Text>
-              <Text style={styles.carModel}>PERODUA MYVI</Text>
             </View>
           </View>
         </View>
@@ -360,5 +359,4 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   licensePlate: { fontSize: 18, fontWeight: "bold", color: "#2c3e50" },
-  carModel: { fontSize: 14, color: "#3498db", fontWeight: "500" },
 });

@@ -12,8 +12,8 @@ const CAMERAS = [
   {
     id: "CAM_VISION_002",
     label: "CAM 2",
-    streamUrl: "http://10.200.84.82/stream",
-    statusUrl: "http://10.200.84.82/status",
+    streamUrl: "http://10.207.162.82/stream",
+    statusUrl: "http://10.207.162.82/status",
     spots: ["A1", "A2", "A3"],
   },
 ];
@@ -35,8 +35,6 @@ export default function CameraSetup() {
   const [checking, setChecking] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const animRef = useRef<number>(0);
-
   const cam = CAMERAS[activeCam];
 
   // Check camera status
@@ -59,7 +57,13 @@ export default function CameraSetup() {
     }
   };
 
+  const stopStream = () => {
+    if (imgRef.current) imgRef.current.src = '';
+    setStreaming(false);
+  };
+
   useEffect(() => {
+    if (imgRef.current) imgRef.current.src = '';
     setOnline(null);
     setStreaming(false);
     checkStatus();
@@ -93,8 +97,10 @@ export default function CameraSetup() {
       offsetY = (containerH - renderedH) / 2;
     }
 
-    canvas.width = containerW;
-    canvas.height = containerH;
+    if (canvas.width !== containerW || canvas.height !== containerH) {
+      canvas.width = containerW;
+      canvas.height = containerH;
+    }
 
     const scaleX = renderedW / 2560;
     const scaleY = renderedH / 1920;
@@ -131,13 +137,10 @@ export default function CameraSetup() {
     if (streaming) {
       const interval = setInterval(drawBoxes, 100);
       return () => clearInterval(interval);
-    } else {
-      cancelAnimationFrame(animRef.current);
-      const canvas = canvasRef.current;
-      if (canvas)
-        canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     }
-    return () => cancelAnimationFrame(animRef.current);
+    const canvas = canvasRef.current;
+    if (canvas)
+      canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
   }, [streaming, activeCam]);
 
   return (
@@ -263,7 +266,7 @@ export default function CameraSetup() {
             <RefreshCw size={12} /> Refresh
           </button>
           <button
-            onClick={() => setStreaming((s) => !s)}
+            onClick={() => streaming ? stopStream() : setStreaming(true)}
             disabled={!online}
             style={{
               padding: "7px 16px",
@@ -329,7 +332,7 @@ export default function CameraSetup() {
           >
             <img
               ref={imgRef}
-              src={`${cam.streamUrl}?t=${Date.now()}`}
+              src={cam.streamUrl}
               style={{
                 width: "100%",
                 display: "block",
@@ -340,7 +343,7 @@ export default function CameraSetup() {
               onLoad={() => {
                 if (streaming) drawBoxes();
               }}
-              onError={() => setOnline(false)}
+              onError={() => stopStream()}
             />
             <canvas
               ref={canvasRef}

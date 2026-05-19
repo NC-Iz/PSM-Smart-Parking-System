@@ -1,15 +1,37 @@
 import {
+  addDoc,
   collection,
   doc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   updateDoc,
   where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebaseConfig';
+
+export const createNotification = async (
+  userId: string,
+  type: 'vehicle' | 'session' | 'payment' | 'warning',
+  title: string,
+  message: string,
+): Promise<void> => {
+  try {
+    await addDoc(collection(db, 'notifications'), {
+      userId,
+      type,
+      title,
+      message,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.warn('Failed to create notification:', error);
+  }
+};
 
 export interface Notification {
   id: string;

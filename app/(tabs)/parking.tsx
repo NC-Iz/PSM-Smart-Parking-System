@@ -18,8 +18,9 @@ import {
   createParkingSession,
   endParkingSession,
   getActiveSession,
+  getParkingLot,
   ParkingSpot,
-  subscribeToSpots,
+  subscribeToOccupiedSpotByPlate,
 } from "../../src/services/parkingService";
 import { deductFromWallet } from "../../src/services/walletService";
 
@@ -33,13 +34,12 @@ interface ActiveSession {
   locationName: string;
 }
 
-const HOURLY_RATE = 2.0;
-
 export default function ActiveParkingScreen() {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [ending, setEnding] = useState(false);
   const [session, setSession] = useState<ActiveSession | null>(null);
+  const [hourlyRate, setHourlyRate] = useState(2.0);
   const [hours, setHours] = useState(0);
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(0);
@@ -51,25 +51,15 @@ export default function ActiveParkingScreen() {
       setLoading(false);
       return;
     }
-    const userPlateNormalized = user.licensePlate
-      .replace(/\s/g, "")
-      .toUpperCase();
-    const unsubscribe = subscribeToSpots(
-      "demo",
-      async (spots: ParkingSpot[]) => {
-        const userSpot = spots.find((spot) => {
-          if (spot.status !== "occupied") return false;
-          const plateValue = spot.licensePlate;
-          if (!plateValue) return false;
-          return (
-            plateValue.replace(/\s/g, "").toUpperCase() === userPlateNormalized
-          );
-        });
+    const unsubscribe = subscribeToOccupiedSpotByPlate(
+      user.licensePlate,
+      async (userSpot: ParkingSpot | null) => {
         if (userSpot) {
           const locationName =
             userSpot.lotId === "demo" ? "Demo Parking" : "UTHM FKEE Parking";
           let sessionId = "";
           let startTime = new Date();
+          let rate = 2.0;
           try {
             const activeSession = await getActiveSession(user.uid);
             if (activeSession) {
@@ -77,18 +67,25 @@ export default function ActiveParkingScreen() {
               startTime = activeSession.startTime?.toDate
                 ? activeSession.startTime.toDate()
                 : new Date();
+              rate = activeSession.hourlyRate ?? 2.0;
             } else {
+              try {
+                const lot = await getParkingLot(userSpot.lotId);
+                if (lot) rate = lot.pricing.hourlyRate;
+              } catch { }
               sessionId = await createParkingSession(
                 user.uid,
                 userSpot.spotId,
                 userSpot.licensePlate || user.licensePlate,
                 "anpr",
+                rate,
               );
               startTime = new Date();
             }
-          } catch (e) {
+          } catch {
             sessionId = `session_${userSpot.spotId}_${Date.now()}`;
           }
+          setHourlyRate(rate);
           setSession((prev) => {
             if (
               prev &&
@@ -119,7 +116,7 @@ export default function ActiveParkingScreen() {
   useEffect(() => {
     if (!session) return;
     const timer = setInterval(() => {
-      const charges = calculateLiveCharges(session.startTime, HOURLY_RATE);
+      const charges = calculateLiveCharges(session.startTime, hourlyRate);
       setHours(charges.hours);
       setMinutes(charges.minutes);
       setSeconds(charges.seconds);
@@ -127,7 +124,7 @@ export default function ActiveParkingScreen() {
       setDuration(`${(charges.hours + charges.minutes / 60).toFixed(1)} Hours`);
     }, 1000);
     return () => clearInterval(timer);
-  }, [session]);
+  }, [session, hourlyRate]);
 
   const handleEndParking = () => {
     if (!user || !session) return;
@@ -309,7 +306,7 @@ export default function ActiveParkingScreen() {
             <View style={styles.chargeRow}>
               <Text style={styles.chargeLabel}>Rate per Hour</Text>
               <Text style={styles.chargeValue}>
-                RM {HOURLY_RATE.toFixed(2)}
+                RM {hourlyRate.toFixed(2)}
               </Text>
             </View>
             <View style={styles.chargeRow}>

@@ -1,11 +1,11 @@
 // File: src/services/parkingService.ts
 
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
+  limit as firestoreLimit,
   onSnapshot,
   orderBy,
   query,
@@ -15,6 +15,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../config/firebaseConfig";
+import { createNotification } from "./notificationService";
 
 // Types
 export interface ParkingLot {
@@ -65,30 +66,8 @@ export interface ParkingSession {
   duration: number | null;
   fee: number | null;
   paymentStatus: "pending" | "paid" | "failed";
+  hourlyRate?: number;
 }
-
-// ==================== NOTIFICATION HELPER ====================
-
-const createNotification = async (
-  userId: string,
-  type: "vehicle" | "session" | "payment" | "warning",
-  title: string,
-  message: string,
-): Promise<void> => {
-  try {
-    await addDoc(collection(db, "notifications"), {
-      userId,
-      type,
-      title,
-      message,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
-  } catch (error) {
-    // Non-blocking — don't throw if notification fails
-    console.warn("Failed to create notification:", error);
-  }
-};
 
 // ==================== PARKING LOTS ====================
 
@@ -172,6 +151,26 @@ export const subscribeToSpots = (
   });
 };
 
+export const subscribeToOccupiedSpotByPlate = (
+  licensePlate: string,
+  callback: (spot: ParkingSpot | null) => void,
+) => {
+  const normalized = licensePlate.replace(/\s/g, "").toUpperCase();
+  const q = query(
+    collection(db, "parkingSpots"),
+    where("licensePlate", "==", normalized),
+    where("status", "==", "occupied"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      callback(null);
+    } else {
+      const d = snapshot.docs[0];
+      callback({ spotId: d.id, ...d.data() } as ParkingSpot);
+    }
+  });
+};
+
 // ==================== PARKING SESSIONS ====================
 
 export const createParkingSession = async (
@@ -179,6 +178,7 @@ export const createParkingSession = async (
   spotId: string,
   licensePlate: string,
   detectionMethod: "anpr" | "manual" = "manual",
+  hourlyRate: number = 2.0,
 ): Promise<string> => {
   try {
     const sessionId = `session_${Date.now()}`;
@@ -194,6 +194,7 @@ export const createParkingSession = async (
       duration: null,
       fee: null,
       paymentStatus: "pending",
+      hourlyRate,
     };
 
     await setDoc(doc(db, "parkingSessions", sessionId), sessionData);
@@ -228,6 +229,8 @@ export const endParkingSession = async (
     }
 
     const sessionData = sessionDoc.data() as ParkingSession;
+
+    if (sessionData.status === "completed") return;
 
     await updateDoc(sessionRef, {
       endTime: serverTimestamp(),
@@ -298,6 +301,7 @@ export const getUserSessions = async (
       collection(db, "parkingSessions"),
       where("userId", "==", userId),
       orderBy("startTime", "desc"),
+      firestoreLimit(limit),
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(

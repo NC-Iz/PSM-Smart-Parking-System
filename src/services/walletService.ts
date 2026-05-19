@@ -1,12 +1,12 @@
 // File: src/services/walletService.ts
 
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
   increment,
+  limit as firestoreLimit,
   orderBy,
   query,
   serverTimestamp,
@@ -15,6 +15,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../config/firebaseConfig";
+import { createNotification } from "./notificationService";
 
 export interface Transaction {
   transactionId: string;
@@ -30,28 +31,6 @@ export interface Transaction {
     referenceId?: string;
   };
 }
-
-// ==================== NOTIFICATION HELPER ====================
-
-const createNotification = async (
-  userId: string,
-  type: "vehicle" | "session" | "payment" | "warning",
-  title: string,
-  message: string,
-): Promise<void> => {
-  try {
-    await addDoc(collection(db, "notifications"), {
-      userId,
-      type,
-      title,
-      message,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
-  } catch (error) {
-    console.warn("Failed to create notification:", error);
-  }
-};
 
 // ==================== WALLET OPERATIONS ====================
 
@@ -161,6 +140,7 @@ export const getUserTransactions = async (
       collection(db, "transactions"),
       where("userId", "==", userId),
       orderBy("timestamp", "desc"),
+      firestoreLimit(limit),
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(

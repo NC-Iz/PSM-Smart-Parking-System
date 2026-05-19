@@ -1,5 +1,5 @@
 import { signOut } from 'firebase/auth'
-import { Camera, Car, CreditCard, LayoutDashboard, LogOut, ParkingCircle, Users } from 'lucide-react'
+import { BarChart2, Camera, Car, CreditCard, LayoutDashboard, LogOut, ParkingCircle, Users } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { auth } from '../config/firebaseConfig'
 import type { AdminUser } from '../App'
@@ -9,6 +9,10 @@ const NAV = [
   { to: '/spots',        icon: ParkingCircle,   label: 'Parking Spots'  },
   { to: '/users',        icon: Users,           label: 'Users'          },
   { to: '/transactions', icon: CreditCard,      label: 'Transactions'   },
+  { to: '/analytics',    icon: BarChart2,       label: 'Analytics'      },
+]
+
+const NAV_SETTINGS = [
   { to: '/camera-setup', icon: Camera,          label: 'Camera Setup'   },
 ]
 
@@ -48,6 +52,20 @@ export default function Layout({ admin }: { admin: AdminUser }) {
           <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.1em', padding: '0 8px', marginBottom: 8 }}>MENU</div>
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} end={to === '/'} style={({ isActive }) => ({
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 12px', borderRadius: 8, textDecoration: 'none',
+              fontSize: 14, fontWeight: 500, transition: 'all 0.15s',
+              background: isActive ? 'rgba(79,142,247,0.15)' : 'transparent',
+              color: isActive ? 'var(--accent)' : 'var(--muted)',
+              borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+            })}>
+              <Icon size={16} />
+              {label}
+            </NavLink>
+          ))}
+          <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+          {NAV_SETTINGS.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} style={({ isActive }) => ({
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 12px', borderRadius: 8, textDecoration: 'none',
               fontSize: 14, fontWeight: 500, transition: 'all 0.15s',

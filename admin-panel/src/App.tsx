@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import ParkingSpots from './pages/ParkingSpots'
 import Transactions from './pages/Transactions'
+import Analytics from './pages/Analytics'
 import CameraSetup from './pages/CameraSetup'
 import Users from './pages/Users'
 
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/spots" element={<ParkingSpots />} />
           <Route path="/users" element={<Users />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/camera-setup" element={<CameraSetup />} />
         </Route>
       </Routes>

@@ -94,7 +94,10 @@ export default function ProfileScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(tabs)/wallet')}
+          >
             <View style={styles.actionLeft}>
               <Ionicons name="wallet-outline" size={24} color="#2c3e50" />
               <Text style={styles.actionText}>Top Up Wallet</Text>
@@ -102,7 +105,10 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#7f8c8d" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push('/(tabs)/parking')}
+          >
             <View style={styles.actionLeft}>
               <Ionicons name="time-outline" size={24} color="#2c3e50" />
               <Text style={styles.actionText}>Parking History</Text>

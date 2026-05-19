@@ -154,7 +154,7 @@ Thank you for using Smart Parking!
 
   const receiptNumber = `#PKG${session.sessionId.slice(-8).toUpperCase()}`;
   const duration = formatDuration(session.startTime, session.endTime);
-  const hourlyRate = 2.0; // Match your system's rate
+  const hourlyRate = session.hourlyRate ?? 2.0;
 
   return (
     <View style={styles.container}>
