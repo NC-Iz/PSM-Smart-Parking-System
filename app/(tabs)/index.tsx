@@ -1,20 +1,24 @@
 // File: app/(tabs)/index.tsx
 // REPLACE your existing index.tsx with this simplified version
 
-import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function WelcomeScreen() {
   const { user, loading } = useAuth();
 
-  // Auto-redirect logged-in users to dashboard
-  useEffect(() => {
-    if (!loading && user) {
-      router.replace('/(tabs)/dashboard');
-    }
-  }, [user, loading]);
+  // Only redirect when this screen is actually focused (initial app load).
+  // Using useEffect would re-fire whenever refreshUser() updates the user
+  // object reference, pulling the user away from whatever tab they're on.
+  useFocusEffect(
+    useCallback(() => {
+      if (!loading && user) {
+        router.replace('/(tabs)/dashboard');
+      }
+    }, [user, loading])
+  );
 
   if (loading) {
     return (

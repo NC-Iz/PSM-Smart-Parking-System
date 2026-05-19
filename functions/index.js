@@ -7,9 +7,44 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // ─── TOYYIBPAY CONFIG ─────────────────────────────────────
-const TOYYIBPAY_SECRET_KEY = "t2e93ldc-szop-sl6x-qrsr-406hs7sl1ufo"; // Paste your secret key here
-const TOYYIBPAY_CATEGORY_CODE = "5di4a3bg"; // Paste your category code here
+const TOYYIBPAY_SECRET_KEY = "t2e93ldc-szop-sl6x-qrsr-406hs7sl1ufo";
+const TOYYIBPAY_CATEGORY_CODE = "5di4a3bg";
 const TOYYIBPAY_BASE_URL = "https://dev.toyyibpay.com"; // Change to https://toyyibpay.com for production
+// ──────────────────────────────────────────────────────────
+
+// ─── PUSH NOTIFICATION HELPER ─────────────────────────────
+async function sendPushNotification(userId, title, body) {
+  try {
+    const userSnap = await db.collection("users").doc(userId).get();
+    const pushToken = userSnap.data()?.pushToken;
+
+    if (!pushToken) {
+      console.log(`[Push] No push token for user ${userId}`);
+      return;
+    }
+
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        to: pushToken,
+        title: title,
+        body: body,
+        sound: "default",
+        priority: "high",
+      }),
+    });
+
+    const result = await response.json();
+    console.log(`[Push] Sent to ${userId}:`, result);
+  } catch (error) {
+    // Non-blocking — don't fail main function if push fails
+    console.warn(`[Push] Failed for user ${userId}:`, error.message);
+  }
+}
 // ──────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────
@@ -18,7 +53,6 @@ const TOYYIBPAY_BASE_URL = "https://dev.toyyibpay.com"; // Change to https://toy
 // Creates a Toyyibpay bill and returns the payment URL
 // ─────────────────────────────────────────────────────────
 exports.createBill = functions.https.onRequest(async (req, res) => {
-  // Allow cross-origin requests from mobile app
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
@@ -37,15 +71,13 @@ exports.createBill = functions.https.onRequest(async (req, res) => {
     const { userId, amount, userEmail, userName, userPhone, paymentMethod } =
       req.body;
 
-    // Map payment method to Toyyibpay channel
     const channelMap = {
-      fpx: "0", // FPX only
-      card: "1", // Credit/Debit card only
-      tng: "2", // Touch n Go only
+      fpx: "0",
+      card: "1",
+      tng: "2",
     };
     const billPaymentChannel = channelMap[paymentMethod] || "0";
 
-    // Validate inputs
     if (!userId || !amount) {
       res.status(400).json({ error: "userId and amount are required" });
       return;
@@ -61,25 +93,20 @@ exports.createBill = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    // Toyyibpay uses cents (sen) — RM 20.00 = 2000
     const amountInSen = Math.round(parseFloat(amount) * 100);
-
-    // Unique bill reference
     const billRef = `TOPUP_${userId.slice(0, 8)}_${Date.now()}`;
 
-    // Get Cloud Function URLs dynamically
     const region = "us-central1";
     const projectId = process.env.GCLOUD_PROJECT;
     const baseCallbackUrl = `https://${region}-${projectId}.cloudfunctions.net`;
 
-    // Prepare Toyyibpay bill payload
     const payload = new URLSearchParams({
       userSecretKey: TOYYIBPAY_SECRET_KEY,
       categoryCode: TOYYIBPAY_CATEGORY_CODE,
       billName: "Wallet Top Up",
       billDescription: `Smart Parking wallet top up - RM ${parseFloat(amount).toFixed(2)}`,
-      billPriceSetting: "1", // 1 = fixed amount
-      billPayorInfo: "1", // 1 = require payer info
+      billPriceSetting: "1",
+      billPayorInfo: "1",
       billAmount: amountInSen.toString(),
       billReturnUrl: `${baseCallbackUrl}/paymentReturn`,
       billCallbackUrl: `${baseCallbackUrl}/paymentCallback`,
@@ -91,10 +118,9 @@ exports.createBill = functions.https.onRequest(async (req, res) => {
       billSplitPaymentArgs: "",
       billPaymentChannel: billPaymentChannel,
       billContentEmail: `Thank you for topping up your Smart Parking wallet with RM ${parseFloat(amount).toFixed(2)}.`,
-      billChargeToCustomer: "0", // 0 = merchant absorbs charges
+      billChargeToCustomer: "0",
     });
 
-    // Call Toyyibpay API
     const response = await axios.post(
       `${TOYYIBPAY_BASE_URL}/index.php/api/createBill`,
       payload.toString(),
@@ -103,12 +129,10 @@ exports.createBill = functions.https.onRequest(async (req, res) => {
 
     const result = response.data;
 
-    // Toyyibpay returns [{ BillCode: "xxxxx" }] on success
     if (Array.isArray(result) && result.length > 0 && result[0].BillCode) {
       const billCode = result[0].BillCode;
       const paymentUrl = `${TOYYIBPAY_BASE_URL}/${billCode}`;
 
-      // Save pending top-up to Firestore so callback can find userId
       await db
         .collection("pendingTopups")
         .doc(billCode)
@@ -171,11 +195,10 @@ function parseMultipart(req) {
 // ─────────────────────────────────────────────────────────
 // FUNCTION 2: paymentCallback
 // Toyyibpay calls this automatically after payment
-// Updates wallet balance in Firestore
+// Updates wallet balance in Firestore + sends push notification
 // ─────────────────────────────────────────────────────────
 exports.paymentCallback = functions.https.onRequest(async (req, res) => {
   try {
-    // Parse multipart/form-data from Toyyibpay
     const fields = await parseMultipart(req);
 
     console.log("=== PARSED FIELDS ===");
@@ -186,13 +209,11 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
     const status = fields.status || "";
     const billCode = fields.billcode || "";
     const orderId = fields.order_id || "";
-    const amountSen = fields.amount || "0";
 
     console.log(`💳 Payment callback received`);
     console.log(`   Bill Code: ${billCode}`);
     console.log(`   Status: ${status}`);
     console.log(`   Ref No: ${refNo}`);
-    console.log(`   Amount: ${amountSen} sen`);
 
     if (status !== "1") {
       console.log(`⚠️ Payment not successful (status=${status}), skipping`);
@@ -222,6 +243,7 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
 
     const batch = db.batch();
 
+    // Transaction record
     const transactionId = `txn_${Date.now()}`;
     const transactionRef = db.collection("transactions").doc(transactionId);
     batch.set(transactionRef, {
@@ -240,21 +262,65 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
       },
     });
 
-    const userRef = db.collection("users").doc(userId);
-    batch.update(userRef, {
+    // Update wallet balance
+    batch.update(db.collection("users").doc(userId), {
       walletBalance: admin.firestore.FieldValue.increment(amountRM),
     });
 
+    // Mark pending topup as completed
     batch.update(pendingRef, {
       status: "completed",
       refNo: refNo,
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    // In-app notification
+    const notifRef = db.collection("notifications").doc(`notif_${Date.now()}`);
+    batch.set(notifRef, {
+      userId: userId,
+      type: "payment",
+      title: "Top Up Successful",
+      message: `RM ${amountRM.toFixed(2)} has been added to your Smart Parking wallet. Reference: ${refNo}`,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
     await batch.commit();
 
     console.log(`✅ Wallet updated: +RM ${amountRM} for user ${userId}`);
     console.log(`✅ Transaction recorded: ${transactionId}`);
+
+    // Push notification
+    await sendPushNotification(
+      userId,
+      "Top Up Successful 💰",
+      `RM ${amountRM.toFixed(2)} has been added to your Smart Parking wallet.`,
+    );
+
+    // Low balance warning — threshold RM5
+    const updatedUser = await db.collection("users").doc(userId).get();
+    const newBalance = updatedUser.data()?.walletBalance ?? 0;
+    if (newBalance < 5) {
+      await db.collection("notifications").add({
+        userId: userId,
+        type: "warning",
+        title: "Low Wallet Balance",
+        message: `Your wallet balance is RM ${newBalance.toFixed(2)}. Top up soon to avoid parking payment issues.`,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Push notification for low balance
+      await sendPushNotification(
+        userId,
+        "Low Wallet Balance ⚠️",
+        `Your balance is RM ${newBalance.toFixed(2)}. Please top up soon.`,
+      );
+
+      console.log(
+        `⚠️ Low balance warning sent to user ${userId} (RM ${newBalance.toFixed(2)})`,
+      );
+    }
 
     res.status(200).send("OK");
   } catch (error) {
@@ -266,7 +332,6 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
 // ─────────────────────────────────────────────────────────
 // FUNCTION 3: paymentReturn
 // User is redirected here after completing payment in browser
-// Shows a simple success/fail page
 // ─────────────────────────────────────────────────────────
 exports.paymentReturn = functions.https.onRequest(async (req, res) => {
   const status = req.query.status_id || req.body.status_id || "";

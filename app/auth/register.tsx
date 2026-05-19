@@ -8,8 +8,10 @@ import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { auth, db } from '../../src/config/firebaseConfig';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function RegisterScreen() {
+  const { refreshUser } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -118,9 +120,12 @@ export default function RegisterScreen() {
         totalBookings: 0,
         walletBalance: 0.00
       });
-      
-      // Navigate to home
-      router.replace('/(tabs)');
+
+      // Reload the full Firestore data so the profile shows correct info
+      await refreshUser();
+
+      // Navigate to dashboard
+      router.replace('/(tabs)/dashboard');
       
     } catch (error: any) {
       console.error('Registration error:', error);

@@ -185,12 +185,6 @@ export default function WalletScreen() {
           title: "Online Banking (FPX)",
           subtitle: "Maybank, CIMB, RHB & more",
         };
-      case "tng":
-        return {
-          icon: "phone-portrait",
-          title: "Touch n Go eWallet",
-          subtitle: "Instant Transfer",
-        };
       case "card":
         return {
           icon: "card",
@@ -281,7 +275,7 @@ export default function WalletScreen() {
           {/* Payment Method */}
           <Text style={styles.sectionTitle}>Payment Method</Text>
 
-          {(["fpx", "tng", "card"] as const).map((method) => {
+          {(["fpx", "card"] as const).map((method) => {
             const info = getPaymentMethodLabel(method);
             return (
               <TouchableOpacity
@@ -336,7 +330,7 @@ export default function WalletScreen() {
           </TouchableOpacity>
 
           <Text style={styles.poweredBy}>
-            Powered by Toyyibpay • Secured by FPX / TNG
+            Powered by Toyyibpay • Secured by FPX
           </Text>
         </View>
 

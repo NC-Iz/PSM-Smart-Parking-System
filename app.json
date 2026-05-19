@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SmartParkingSystem",
-    "slug": "SmartParkingSystem",
+    "slug": "smartparkingsystem",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.faizamin.smartparkingsystem"
     },
     "web": {
       "output": "static",
@@ -39,11 +40,19 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a88bb296-beed-436a-bd2e-4dd533f56352"
+      }
+    },
+    "owner": "faizamin"
   }
 }
