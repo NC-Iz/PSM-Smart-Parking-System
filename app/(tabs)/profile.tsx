@@ -59,7 +59,7 @@ export default function ProfileScreen() {
             <Ionicons name="person" size={48} color="#fff" />
           </View>
           <Text style={styles.userName}>{user.fullName}</Text>
-          <TouchableOpacity style={styles.editButton}>
+          <TouchableOpacity style={styles.editButton} onPress={() => router.push('/edit-profile')}>
             <Text style={styles.editButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
@@ -107,7 +107,7 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push('/(tabs)/parking')}
+            onPress={() => router.push('/(tabs)/history')}
           >
             <View style={styles.actionLeft}>
               <Ionicons name="time-outline" size={24} color="#2c3e50" />
@@ -186,6 +186,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 25,
     borderRadius: 20,
+    marginTop: 12,
   },
   editButtonText: {
     color: '#fff',

@@ -107,7 +107,7 @@ export default function WalletScreen() {
     try {
       // Call Cloud Function to create Toyyibpay bill
       const response = await fetch(
-        "https://us-central1-smartparkingsystem-dd7ce.cloudfunctions.net/createBill",
+        `${CLOUD_FUNCTIONS_URL}/createBill`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

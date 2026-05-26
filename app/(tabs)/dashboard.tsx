@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { db } from "../../src/config/firebaseConfig";
 import { useAuth } from "../../src/contexts/AuthContext";
-import { getParkingSpots } from "../../src/services/parkingService";
+import { subscribeToSpots } from "../../src/services/parkingService";
 
 export default function DashboardScreen() {
   const { user, loading } = useAuth();
@@ -83,23 +83,16 @@ export default function DashboardScreen() {
     return () => shake.stop();
   }, [unreadCount]);
 
-  const fetchAvailableSpots = async () => {
-    try {
-      const spots = await getParkingSpots(selectedLocation);
-      setAvailableSpots(spots.filter((s) => s.status === "available").length);
-    } catch {
-      setAvailableSpots(0);
-    }
-  };
-
   useEffect(() => {
-    if (user) fetchAvailableSpots();
+    if (!user) return;
+    return subscribeToSpots(selectedLocation, (spots) => {
+      setAvailableSpots(spots.filter((s) => s.status === "available").length);
+    });
   }, [user, selectedLocation]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchAvailableSpots();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 500);
   };
 
   if (loading) {
