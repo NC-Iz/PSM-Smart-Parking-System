@@ -1,5 +1,5 @@
 import { signOut } from 'firebase/auth'
-import { BarChart2, Camera, Car, CreditCard, LayoutDashboard, LogOut, ParkingCircle, Users } from 'lucide-react'
+import { BarChart2, Building2, Camera, Car, CreditCard, LayoutDashboard, LogOut, ParkingCircle, Users } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { auth } from '../config/firebaseConfig'
 import type { AdminUser } from '../App'
@@ -13,6 +13,7 @@ const NAV = [
 ]
 
 const NAV_SETTINGS = [
+  { to: '/facilities',   icon: Building2,       label: 'Facilities'     },
   { to: '/camera-setup', icon: Camera,          label: 'Camera Setup'   },
 ]
 

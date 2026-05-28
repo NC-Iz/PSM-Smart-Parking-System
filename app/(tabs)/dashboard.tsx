@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
+
 import {
   ActivityIndicator,
   Animated,
@@ -21,16 +22,26 @@ import { subscribeToSpots } from "../../src/services/parkingService";
 export default function DashboardScreen() {
   const { user, loading } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState("demo");
+  const [selectedLocation, setSelectedLocation] = useState("");
   const [availableSpots, setAvailableSpots] = useState(0);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [parkingLocations, setParkingLocations] = useState<{ id: string; name: string }[]>([]);
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
-  const parkingLocations = [
-    { id: "demo", name: "Demo Parking" },
-    { id: "uthm", name: "UTHM FKEE Parking" },
-  ];
+  // Fetch parking lots from Firestore — replaces hardcoded list
+  useEffect(() => {
+    const q = query(collection(db, "parkingLots"), where("isActive", "==", true));
+    return onSnapshot(q, (snap) => {
+      const lots = snap.docs.map((d) => ({
+        id: d.id,
+        name: (d.data().name as string) ?? d.id,
+      }));
+      setParkingLocations(lots);
+      // Auto-select first lot if nothing is selected yet
+      setSelectedLocation((prev) => (prev === "" && lots.length > 0 ? lots[0].id : prev));
+    });
+  }, []);
 
   useEffect(() => {
     if (!user) return;

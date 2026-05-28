@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getParkingSpots, subscribeToSpots } from '../src/services/parkingService';
+import { getParkingLot, getParkingSpots, subscribeToSpots } from '../src/services/parkingService';
 
 interface ParkingSpot {
   spotId: string;
@@ -22,18 +22,21 @@ interface ParkingRow {
 
 export default function ParkingMapScreen() {
   const params = useLocalSearchParams();
-  const locationId = params.locationId || 'demo';
+  const locationId = params.locationId as string;
   
   const [rows, setRows] = useState<ParkingRow[]>([]);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFullLayout, setShowFullLayout] = useState(false);
+  const [locationName, setLocationName] = useState<string>(locationId as string);
 
-  const locationNames: { [key: string]: string } = {
-    demo: 'Demo Parking',
-    uthm: 'UTHM FKEE Parking',
-  };
+  // Fetch lot name from Firestore
+  useEffect(() => {
+    getParkingLot(locationId as string).then((lot) => {
+      if (lot?.name) setLocationName(lot.name);
+    });
+  }, [locationId]);
 
   // Fetch parking data from Firestore
   const fetchParkingData = async () => {
@@ -136,7 +139,7 @@ export default function ParkingMapScreen() {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{locationNames[locationId as string]}</Text>
+          <Text style={styles.headerTitle}>{locationName}</Text>
           <View style={{ width: 24 }} />
         </View>
 

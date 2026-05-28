@@ -1,10 +1,11 @@
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
+  serverTimestamp,
   setDoc,
   updateDoc,
+  writeBatch,
 } from "firebase/firestore";
 import { Camera, Plus, RefreshCw, Trash2, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,6 +17,12 @@ interface CameraDoc {
   ip: string;
   spots: string[];
   enabled: boolean;
+  lotId?: string;
+}
+
+interface LotOption {
+  id: string;
+  name: string;
 }
 
 const SPOT_COORDS = [
@@ -26,7 +33,7 @@ const SPOT_COORDS = [
 
 const BOX_COLORS = ["#4f8ef7", "#22c55e", "#f59e0b"];
 
-const EMPTY_FORM = { id: "", label: "", spots: "" };
+const EMPTY_FORM = { id: "", label: "", spots: "", lotId: "" };
 
 export default function CameraSetup() {
   const [cameras, setCameras]             = useState<CameraDoc[]>([]);
@@ -38,6 +45,8 @@ export default function CameraSetup() {
   const [form, setForm]                   = useState(EMPTY_FORM);
   const [saving, setSaving]               = useState(false);
   const [formError, setFormError]         = useState("");
+
+  const [lots, setLots] = useState<LotOption[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef    = useRef<HTMLImageElement>(null);
@@ -54,6 +63,18 @@ export default function CameraSetup() {
       setActiveCamIdx((i) => Math.min(i, Math.max(docs.length - 1, 0)));
     });
     return unsub;
+  }, []);
+
+  // ── Live parking lots list ────────────────────────────────
+  useEffect(() => {
+    return onSnapshot(collection(db, "parkingLots"), (snap) => {
+      setLots(
+        snap.docs.map((d) => ({
+          id: d.id,
+          name: (d.data().name as string) ?? d.id,
+        }))
+      );
+    });
   }, []);
 
   // ── Camera status check ───────────────────────────────────
@@ -146,15 +167,16 @@ export default function CameraSetup() {
   // ── Add camera ────────────────────────────────────────────
   const handleAdd = async () => {
     setFormError("");
-    const id    = form.id.trim().toUpperCase().replace(/\s/g, "_");
-    const label = form.label.trim();
-    const spots = form.spots.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
+    const id     = form.id.trim().toUpperCase().replace(/\s/g, "_");
+    const label  = form.label.trim();
+    const lotId  = form.lotId.trim();
+    const rawSpots = form.spots.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
 
-    if (!id || !label || spots.length === 0) {
+    if (!id || !label || !lotId || rawSpots.length === 0) {
       setFormError("All fields are required.");
       return;
     }
-    if (spots.length > 3) {
+    if (rawSpots.length > 3) {
       setFormError("Maximum 3 spots per camera (one per coordinate box).");
       return;
     }
@@ -163,11 +185,32 @@ export default function CameraSetup() {
       return;
     }
 
+    // Build full spot IDs as {lotId}_{spotNumber} e.g. demo_A1
+    const spotIds = rawSpots.map((s) => `${lotId}_${s}`);
+
     setSaving(true);
     try {
+      // Save camera document
       await setDoc(doc(db, "cameras", id), {
-        id, label, spots, enabled: true,
+        id, label, lotId, spots: spotIds, enabled: true,
       }, { merge: true });
+
+      // Create spot documents in parkingSpots if they don't exist yet
+      for (const spotId of spotIds) {
+        const spotNumber = spotId.replace(`${lotId}_`, "");
+        const rowId = spotNumber.replace(/[0-9]/g, ""); // e.g. "A" from "A1"
+        await setDoc(doc(db, "parkingSpots", spotId), {
+          spotNumber,
+          lotId,
+          rowId,
+          status: "available",
+          esp32CamId: id,
+          licensePlate: null,
+          coordinates: { x: 0, y: 0 },
+          lastUpdated: serverTimestamp(),
+        }, { merge: true }); // merge: true keeps existing data if spot already exists
+      }
+
       setForm(EMPTY_FORM);
       setShowModal(false);
     } catch {
@@ -184,8 +227,19 @@ export default function CameraSetup() {
 
   // ── Delete camera ─────────────────────────────────────────
   const handleDelete = async (docId: string) => {
-    if (!confirm("Delete this camera?")) return;
-    await deleteDoc(doc(db, "cameras", docId));
+    const camToDelete = cameras.find((c) => (c as any).docId === docId);
+    const spotIds = camToDelete?.spots ?? [];
+    const spotLabel = spotIds.length > 0
+      ? `\n\nThis will also delete ${spotIds.length} spot(s): ${spotIds.map((s) => s.includes("_") ? s.split("_").slice(1).join("_") : s).join(", ")}`
+      : "";
+    if (!confirm(`Delete this camera?${spotLabel}`)) return;
+
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "cameras", docId));
+    for (const spotId of spotIds) {
+      batch.delete(doc(db, "parkingSpots", spotId));
+    }
+    await batch.commit();
   };
 
   return (
@@ -230,7 +284,7 @@ export default function CameraSetup() {
             <Camera size={15} />
             {c.label}
             <span style={{ fontSize: 11, fontFamily: "var(--mono)", opacity: 0.7 }}>
-              ({c.spots.join(", ")})
+              ({c.spots.map((s) => s.includes("_") ? s.split("_").slice(1).join("_") : s).join(", ")})
             </span>
             {!c.enabled && (
               <span style={{ fontSize: 10, color: "var(--red)", fontWeight: 700 }}>DISABLED</span>
@@ -420,6 +474,29 @@ export default function CameraSetup() {
               Add Camera
             </h2>
 
+            {/* Parking Facility dropdown */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, display: "block", marginBottom: 6 }}>
+                Parking Facility
+              </label>
+              <select
+                value={form.lotId}
+                onChange={(e) => setForm((f) => ({ ...f, lotId: e.target.value }))}
+                style={{
+                  width: "100%", padding: "10px 12px", borderRadius: 8,
+                  border: "1px solid var(--border)", background: "var(--bg3)",
+                  color: form.lotId ? "var(--text)" : "var(--muted)",
+                  fontSize: 14, boxSizing: "border-box", cursor: "pointer",
+                }}
+              >
+                <option value="">Select a facility...</option>
+                {lots.map((lot) => (
+                  <option key={lot.id} value={lot.id}>{lot.name} ({lot.id})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Camera ID, Label, Spots */}
             {[
               { label: "Camera ID", key: "id", placeholder: "e.g. CAM_VISION_003" },
               { label: "Camera Label", key: "label", placeholder: "e.g. CAM 3" },

@@ -201,7 +201,7 @@ export const createParkingSession = async (
     await updateSpotStatus(spotId, "occupied");
 
     // Notify user that session has started
-    const spotNumber = spotId.replace("demo_", "");
+    const spotNumber = spotId.includes("_") ? spotId.split("_").slice(1).join("_") : spotId;
     await createNotification(
       userId,
       "vehicle",
@@ -242,7 +242,7 @@ export const endParkingSession = async (
     await updateSpotStatus(sessionData.spotId, "available");
 
     // Notify user that session has ended
-    const spotNumber = sessionData.spotId.replace("demo_", "");
+    const spotNumber = sessionData.spotId.includes("_") ? sessionData.spotId.split("_").slice(1).join("_") : sessionData.spotId;
     await createNotification(
       sessionData.userId,
       "session",

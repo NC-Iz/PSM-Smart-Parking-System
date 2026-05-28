@@ -10,6 +10,7 @@ import ParkingSpots from './pages/ParkingSpots'
 import Transactions from './pages/Transactions'
 import Analytics from './pages/Analytics'
 import CameraSetup from './pages/CameraSetup'
+import ParkingFacility from './pages/ParkingFacility'
 import Users from './pages/Users'
 
 export interface AdminUser {
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/camera-setup" element={<CameraSetup />} />
+          <Route path="/facilities" element={<ParkingFacility />} />
         </Route>
       </Routes>
     </BrowserRouter>

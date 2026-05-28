@@ -1,8 +1,8 @@
 // File: src/contexts/AuthContext.tsx
 
 import { signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import { doc, getDocFromServer, updateDoc } from "firebase/firestore";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { auth, db } from "../config/firebaseConfig";
 
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Fetch user data from Firestore
   const fetchUserData = async (uid: string): Promise<UserData | null> => {
     try {
-      const userDoc = await getDoc(doc(db, "users", uid));
+      const userDoc = await getDocFromServer(doc(db, "users", uid));
       if (userDoc.exists()) {
         return userDoc.data() as UserData;
       }
@@ -117,12 +117,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Refresh user data
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     if (auth.currentUser) {
       const userData = await fetchUserData(auth.currentUser.uid);
       if (userData) setUser(userData);
     }
-  };
+  }, []);
 
   // Sign out function
   const signOut = async () => {

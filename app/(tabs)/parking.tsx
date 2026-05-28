@@ -2,7 +2,7 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -46,6 +46,8 @@ export default function ActiveParkingScreen() {
   const [currentCharge, setCurrentCharge] = useState(0);
   const [duration, setDuration] = useState("0 Hours");
 
+  const creatingSession = useRef(false);
+
   useEffect(() => {
     if (!user || !user.licensePlate) {
       setLoading(false);
@@ -55,8 +57,8 @@ export default function ActiveParkingScreen() {
       user.licensePlate,
       async (userSpot: ParkingSpot | null) => {
         if (userSpot) {
-          const locationName =
-            userSpot.lotId === "demo" ? "Demo Parking" : "UTHM FKEE Parking";
+          const lot = await getParkingLot(userSpot.lotId);
+          const locationName = lot?.name ?? userSpot.lotId;
           let sessionId = "";
           let startTime = new Date();
           let rate = 2.0;
@@ -68,21 +70,29 @@ export default function ActiveParkingScreen() {
                 ? activeSession.startTime.toDate()
                 : new Date();
               rate = activeSession.hourlyRate ?? 2.0;
-            } else {
+            } else if (!creatingSession.current) {
+              creatingSession.current = true;
               try {
                 const lot = await getParkingLot(userSpot.lotId);
                 if (lot) rate = lot.pricing.hourlyRate;
               } catch { }
-              sessionId = await createParkingSession(
-                user.uid,
-                userSpot.spotId,
-                userSpot.licensePlate || user.licensePlate,
-                "anpr",
-                rate,
-              );
+              try {
+                sessionId = await createParkingSession(
+                  user.uid,
+                  userSpot.spotId,
+                  userSpot.licensePlate || user.licensePlate,
+                  "anpr",
+                  rate,
+                );
+              } finally {
+                creatingSession.current = false;
+              }
               startTime = new Date();
+            } else {
+              return;
             }
           } catch {
+            creatingSession.current = false;
             sessionId = `session_${userSpot.spotId}_${Date.now()}`;
           }
           setHourlyRate(rate);
@@ -107,11 +117,12 @@ export default function ActiveParkingScreen() {
         } else {
           setSession(null);
           setLoading(false);
+          refreshUser();
         }
       },
     );
     return () => unsubscribe();
-  }, [user]);
+  }, [user, refreshUser]);
 
   useEffect(() => {
     if (!session) return;

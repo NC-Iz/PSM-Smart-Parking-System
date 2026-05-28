@@ -1,4 +1,4 @@
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { Activity, Clock, DollarSign, ParkingCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -18,8 +18,11 @@ interface Session {
 
 interface Spot {
   spotId: string
+  lotId: string
   status: string
 }
+
+interface LotOption { id: string; name: string }
 
 type Range = '7d' | '30d' | 'all'
 
@@ -34,6 +37,10 @@ function fmtMin(m: number): string {
   if (m <= 0) return '0m'
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`
 }
+
+// Strip lotId prefix — "demo_A1" → "A1"
+const stripLot = (spotId: string) =>
+  spotId.includes('_') ? spotId.split('_').slice(1).join('_') : spotId
 
 const tooltipStyle = {
   contentStyle: {
@@ -65,9 +72,17 @@ const StatCard = ({ icon: Icon, label, value, sub, color }: any) => (
 )
 
 export default function Analytics() {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [spots, setSpots] = useState<Spot[]>([])
-  const [range, setRange] = useState<Range>('30d')
+  const [sessions, setSessions]       = useState<Session[]>([])
+  const [spots, setSpots]             = useState<Spot[]>([])
+  const [lots, setLots]               = useState<LotOption[]>([])
+  const [selectedLot, setSelectedLot] = useState('all')
+  const [range, setRange]             = useState<Range>('30d')
+
+  useEffect(() => {
+    return onSnapshot(collection(db, 'parkingLots'), snap => {
+      setLots(snap.docs.map(d => ({ id: d.id, name: (d.data().name as string) ?? d.id })))
+    })
+  }, [])
 
   useEffect(() => {
     const unsubs = [
@@ -81,16 +96,26 @@ export default function Analytics() {
     return () => unsubs.forEach(u => u())
   }, [])
 
+  // Filter by facility
+  const lotSessions = selectedLot === 'all'
+    ? sessions
+    : sessions.filter(s => s.spotId.startsWith(selectedLot + '_'))
+
+  const lotSpots = selectedLot === 'all'
+    ? spots
+    : spots.filter(s => s.lotId === selectedLot)
+
+  // Filter by date range
   const cutoff = range === '7d' ? daysAgo(7) : range === '30d' ? daysAgo(30) : null
 
-  const completed = useMemo(() => sessions.filter(s => {
+  const completed = useMemo(() => lotSessions.filter(s => {
     if (s.status !== 'completed') return false
     if (!cutoff) return true
     const t = s.endTime?.toDate ? s.endTime.toDate() : null
     return t && t >= cutoff
-  }), [sessions, range])
+  }), [lotSessions, range])
 
-  // --- Stat card values ---
+  // Stat card values
   const totalRevenue = completed.reduce((a, s) => a + (s.fee || 0), 0)
 
   const avgDuration = useMemo(() => {
@@ -101,11 +126,11 @@ export default function Analytics() {
     return Math.round(totalMs / withBoth.length / 60000)
   }, [completed])
 
-  const occupied = spots.filter(s => s.status === 'occupied').length
-  const totalSpots = spots.filter(s => s.status !== 'disabled').length
+  const occupied     = lotSpots.filter(s => s.status === 'occupied').length
+  const totalSpots   = lotSpots.filter(s => s.status !== 'disabled').length
   const occupancyPct = totalSpots > 0 ? Math.round((occupied / totalSpots) * 100) : 0
 
-  // --- Chart 1: Daily revenue (line chart) ---
+  // Chart 1: Daily revenue
   const dailyRevenue = useMemo(() => {
     const map: Record<string, number> = {}
     completed.forEach(s => {
@@ -123,41 +148,41 @@ export default function Analytics() {
       .map(([date, revenue]) => ({ date, revenue: Math.round(revenue * 100) / 100 }))
   }, [completed])
 
-  // --- Chart 3: Peak usage hours ---
+  // Chart 2: Sessions per spot
+  const sessionsBySpot = useMemo(() => {
+    const map: Record<string, number> = {}
+    completed.forEach(s => {
+      const spot = stripLot(s.spotId)
+      map[spot] = (map[spot] || 0) + 1
+    })
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([spot, count]) => ({ spot, sessions: count }))
+  }, [completed])
+
+  // Chart 3: Peak usage hours
   const peakHours = useMemo(() => {
     const counts = Array(24).fill(0)
     completed.forEach(s => {
       const d = s.startTime?.toDate ? s.startTime.toDate() : null
       if (d) counts[d.getHours()]++
     })
-    return counts.map((sessions, h) => ({ hour: `${h.toString().padStart(2, '0')}h`, sessions }))
+    return counts.map((count, h) => ({ hour: `${h.toString().padStart(2, '0')}h`, sessions: count }))
   }, [completed])
 
   const maxPeak = Math.max(...peakHours.map(h => h.sessions), 1)
 
-  // --- Chart 4: Revenue by spot (horizontal bar) ---
+  // Chart 4: Revenue by spot
   const revenueBySpot = useMemo(() => {
     const map: Record<string, number> = {}
     completed.forEach(s => {
-      const spot = s.spotId.replace('demo_', '')
+      const spot = stripLot(s.spotId)
       map[spot] = (map[spot] || 0) + (s.fee || 0)
     })
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([spot, revenue]) => ({ spot, revenue: Math.round(revenue * 100) / 100 }))
-  }, [completed])
-
-  // --- Chart 2: Sessions per spot (bar chart) ---
-  const sessionsBySpot = useMemo(() => {
-    const map: Record<string, number> = {}
-    completed.forEach(s => {
-      const spot = s.spotId.replace('demo_', '')
-      map[spot] = (map[spot] || 0) + 1
-    })
-    return Object.entries(map)
-      .sort((a, b) => b[1] - a[1])
-      .map(([spot, sessions]) => ({ spot, sessions }))
   }, [completed])
 
   const RangeBtn = ({ r, label }: { r: Range; label: string }) => (
@@ -179,41 +204,38 @@ export default function Analytics() {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Analytics</h1>
           <p style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4 }}>Parking system performance overview</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <RangeBtn r="7d" label="7 days" />
-          <RangeBtn r="30d" label="30 days" />
-          <RangeBtn r="all" label="All time" />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* Facility selector */}
+          <select
+            value={selectedLot}
+            onChange={e => setSelectedLot(e.target.value)}
+            style={{
+              padding: '5px 14px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--bg2)', color: 'var(--text)', fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="all">All Facilities</option>
+            {lots.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          {/* Date range */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <RangeBtn r="7d"  label="7 days"   />
+            <RangeBtn r="30d" label="30 days"  />
+            <RangeBtn r="all" label="All time" />
+          </div>
         </div>
       </div>
 
       {/* 4 Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
-        <StatCard
-          icon={DollarSign} label="Total Revenue"
-          value={`RM ${totalRevenue.toFixed(2)}`}
-          color="var(--green)"
-        />
-        <StatCard
-          icon={Activity} label="Total Sessions"
-          value={completed.length}
-          sub={completed.length === 1 ? '1 completed session' : `${completed.length} completed sessions`}
-          color="var(--accent)"
-        />
-        <StatCard
-          icon={Clock} label="Avg Duration"
-          value={fmtMin(avgDuration)}
-          sub="per session"
-          color="var(--amber)"
-        />
-        <StatCard
-          icon={ParkingCircle} label="Occupancy Rate"
-          value={`${occupancyPct}%`}
-          sub={`${occupied} of ${totalSpots} spots occupied`}
-          color="var(--accent2)"
-        />
+        <StatCard icon={DollarSign}   label="Total Revenue"   value={`RM ${totalRevenue.toFixed(2)}`} color="var(--green)"   />
+        <StatCard icon={Activity}     label="Total Sessions"  value={completed.length} sub={`${completed.length} completed`} color="var(--accent)"  />
+        <StatCard icon={Clock}        label="Avg Duration"    value={fmtMin(avgDuration)} sub="per session"                  color="var(--amber)"   />
+        <StatCard icon={ParkingCircle} label="Occupancy Rate" value={`${occupancyPct}%`} sub={`${occupied} of ${totalSpots} spots occupied`} color="var(--accent2)" />
       </div>
 
-      {/* 2 Charts */}
+      {/* Charts row 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         {/* Chart 1: Revenue by day */}
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
@@ -257,7 +279,8 @@ export default function Analytics() {
           )}
         </div>
       </div>
-      {/* Chart 3 + 4: Peak Hours + Revenue by Spot */}
+
+      {/* Charts row 2 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
         {/* Chart 3: Peak usage hours */}
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
@@ -284,7 +307,7 @@ export default function Analytics() {
           )}
         </div>
 
-        {/* Chart 4: Revenue by spot (horizontal) */}
+        {/* Chart 4: Revenue by spot */}
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Revenue by Spot</h3>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20 }}>Total earnings per parking spot</p>
