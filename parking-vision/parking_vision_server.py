@@ -78,21 +78,22 @@ cameras_lock   = threading.Lock()
 active_cameras = {}  # cam_id -> {url, spots, thread, stop_event}
 
 
-def build_spots_config(spots_list, lot_id):
+def build_spots_config(spots_list, lot_id, spot_coords=None):
     """
     Build spot config dict keyed by full spot ID.
     Handles both formats stored by Camera Setup:
       - raw:    ["A4", "A5", "A6"]       → keys: demo_A4, demo_A5, demo_A6
       - prefixed: ["demo_A4", "demo_A5"] → same keys (strips duplicate prefix)
+    spot_coords: optional list of [x1,y1,x2,y2] from Firestore, falls back to SPOT_COORDS.
     """
     result = {}
     prefix = lot_id + "_"
     for i, spot in enumerate(spots_list):
         if i >= len(SPOT_COORDS):
             break
-        # Strip lot prefix if Camera Setup already included it
         spot_num = spot[len(prefix):] if spot.startswith(prefix) else spot
-        result[f"{prefix}{spot_num}"] = {"coords": SPOT_COORDS[i], "spotNumber": spot_num}
+        coords = spot_coords[i] if spot_coords and i < len(spot_coords) else SPOT_COORDS[i]
+        result[f"{prefix}{spot_num}"] = {"coords": coords, "spotNumber": spot_num}
     return result
 
 
@@ -148,32 +149,39 @@ def load_cameras_from_firestore():
             print("[Config] No enabled cameras found in Firestore")
             return
         for doc in docs:
-            data   = doc.to_dict()
-            cam_id = data.get("id", doc.id)
-            ip     = data.get("ip", "")
-            spots  = data.get("spots", [])
-            lot_id = data.get("lotId", "")
+            data        = doc.to_dict()
+            cam_id      = data.get("id", doc.id)
+            ip          = data.get("ip", "")
+            spots       = data.get("spots", [])
+            lot_id      = data.get("lotId", "")
+            raw_coords  = data.get("spotCoords", None)
+            spot_coords = [[c["x1"], c["y1"], c["x2"], c["y2"]] for c in raw_coords if isinstance(c, dict)] if raw_coords else None
             if not ip or not spots:
                 print(f"[Config] ⚠ Skipping {cam_id} — missing ip or spots")
                 continue
-            start_camera_thread(cam_id, f"http://{ip}/capture", build_spots_config(spots, lot_id), lot_id)
+            label = " (custom coords)" if spot_coords else " (default coords)"
+            print(f"[Config] Loading {cam_id}{label}")
+            start_camera_thread(cam_id, f"http://{ip}/capture", build_spots_config(spots, lot_id, spot_coords), lot_id)
     except Exception as e:
         print(f"[Config] ✗ Failed to load cameras: {e}")
 
 
 def on_cameras_snapshot(col_snapshot, changes, read_time):
     for change in changes:
-        data    = change.document.to_dict()
-        cam_id  = data.get("id", change.document.id)
-        ip      = data.get("ip", "")
-        spots   = data.get("spots", [])
-        enabled = data.get("enabled", True)
-        lot_id  = data.get("lotId", "")
+        data        = change.document.to_dict()
+        cam_id      = data.get("id", change.document.id)
+        ip          = data.get("ip", "")
+        spots       = data.get("spots", [])
+        enabled     = data.get("enabled", True)
+        lot_id      = data.get("lotId", "")
+        raw_coords  = data.get("spotCoords", None)
+        spot_coords = [[c["x1"], c["y1"], c["x2"], c["y2"]] for c in raw_coords if isinstance(c, dict)] if raw_coords else None
 
         if change.type.name in ("ADDED", "MODIFIED"):
             if enabled and ip and spots:
-                print(f"[Config] Camera {change.type.name.lower()}: {cam_id}")
-                start_camera_thread(cam_id, f"http://{ip}/capture", build_spots_config(spots, lot_id), lot_id)
+                label = " (custom coords)" if spot_coords else " (default coords)"
+                print(f"[Config] Camera {change.type.name.lower()}: {cam_id}{label}")
+                start_camera_thread(cam_id, f"http://{ip}/capture", build_spots_config(spots, lot_id, spot_coords), lot_id)
             else:
                 stop_camera_thread(cam_id)
         elif change.type.name == "REMOVED":
@@ -556,14 +564,34 @@ def process_vehicles_with_anpr(image, vehicles):
     return vehicles
 
 
+# Minimum fraction of vehicle area that must overlap with spot box
+IOU_THRESHOLD = 0.55
+
 def is_spot_occupied(coords, vehicles):
-    """Center-point check: is any vehicle center inside the spot box?"""
+    """Combined check: vehicle center must be inside box AND >= IOU_THRESHOLD of vehicle overlaps."""
     x1, y1, x2, y2 = coords
     for v in vehicles:
         vx1, vy1, vx2, vy2 = v["bbox"]
-        cx, cy = (vx1+vx2)/2, (vy1+vy2)/2
-        if x1 <= cx <= x2 and y1 <= cy <= y2:
+
+        # 1. Center-point check
+        cx, cy = (vx1 + vx2) / 2, (vy1 + vy2) / 2
+        if not (x1 <= cx <= x2 and y1 <= cy <= y2):
+            continue
+
+        # 2. IoU check — what fraction of the vehicle is inside the spot box
+        vehicle_area = (vx2 - vx1) * (vy2 - vy1)
+        if vehicle_area == 0:
+            continue
+
+        ix1, iy1 = max(x1, vx1), max(y1, vy1)
+        ix2, iy2 = min(x2, vx2), min(y2, vy2)
+        if ix2 <= ix1 or iy2 <= iy1:
+            continue
+
+        overlap = (ix2 - ix1) * (iy2 - iy1) / vehicle_area
+        if overlap >= IOU_THRESHOLD:
             return True, v["confidence"], v
+
     return False, None, None
 
 
@@ -866,9 +894,36 @@ def analyze_single_camera(image, spots_config, cam_id, lot_id=None):
     start = time.time()
 
     cam_model = yolo_models.get(cam_id, next(iter(yolo_models.values())))
-    print(f"  [{cam_id}] 🔍 Running YOLO...", end=" ")
-    vehicles = detect_vehicles(image, cam_model)
+
+    disabled_spots = get_disabled_spots(list(spots_config.keys()))
+    if disabled_spots:
+        print(f"  [{cam_id}] ⛔ Skipping {len(disabled_spots)} disabled spot(s): {disabled_spots}")
+
+    # Build combined crop covering all active spot boxes
+    active_coords = [
+        spot["coords"] for spot_id, spot in spots_config.items()
+        if spot_id not in disabled_spots
+    ]
+
+    if active_coords:
+        crop_x1 = max(0, min(c[0] for c in active_coords))
+        crop_y1 = max(0, min(c[1] for c in active_coords))
+        crop_x2 = min(image.shape[1], max(c[2] for c in active_coords))
+        crop_y2 = min(image.shape[0], max(c[3] for c in active_coords))
+        detection_region = image[crop_y1:crop_y2, crop_x1:crop_x2]
+        print(f"  [{cam_id}] 🔍 Running YOLO on combined crop [{crop_x1},{crop_y1}→{crop_x2},{crop_y2}]...", end=" ")
+    else:
+        detection_region = image
+        crop_x1 = crop_y1 = 0
+        print(f"  [{cam_id}] 🔍 Running YOLO on full image...", end=" ")
+
+    vehicles = detect_vehicles(detection_region, cam_model)
     print(f"✓ {len(vehicles)} vehicles found")
+
+    # Adjust vehicle coords from crop space back to full image space
+    for v in vehicles:
+        vx1, vy1, vx2, vy2 = v["bbox"]
+        v["bbox"] = [crop_x1 + vx1, crop_y1 + vy1, crop_x1 + vx2, crop_y1 + vy2]
 
     with stats_lock:
         stats["total_vehicles_detected"] += len(vehicles)
@@ -876,15 +931,12 @@ def analyze_single_camera(image, spots_config, cam_id, lot_id=None):
     if vehicles:
         for i, v in enumerate(vehicles, 1):
             print(f"  [{cam_id}]   {i}. {v['class_name']} (conf: {v['confidence']:.2f})")
+        # Use full image for ANPR — better resolution for plate detection
         vehicles = process_vehicles_with_anpr(image, vehicles)
 
     print(f"  [{cam_id}] 📊 Analysing spots...")
     results         = {}
     firestore_batch = {}
-
-    disabled_spots = get_disabled_spots(list(spots_config.keys()))
-    if disabled_spots:
-        print(f"  [{cam_id}] ⛔ Skipping {len(disabled_spots)} disabled spot(s): {disabled_spots}")
 
     for spot_id, spot in spots_config.items():
         if spot_id in disabled_spots:
