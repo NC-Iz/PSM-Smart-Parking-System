@@ -86,7 +86,8 @@ export default function Users() {
 
       {/* Table */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
               {['User', 'License Plate', 'Wallet Balance', 'Status', 'Actions'].map(h => (
@@ -107,7 +108,7 @@ export default function Users() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
                       width: 34, height: 34, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                      background: 'var(--accent)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0,
                     }}>
@@ -160,6 +161,7 @@ export default function Users() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

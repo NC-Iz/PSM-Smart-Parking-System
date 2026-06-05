@@ -1,6 +1,6 @@
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
-import { Car, Lock, Mail } from 'lucide-react'
+import { Lock, Mail } from 'lucide-react'
 import { useState } from 'react'
 import { auth, db } from '../config/firebaseConfig'
 
@@ -39,13 +39,7 @@ export default function Login() {
       <div style={{ width: '100%', maxWidth: 400, padding: '0 24px' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{
-            width: 56, height: 56, background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-            borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <Car size={26} color="#fff" />
-          </div>
+          <img src="/logo.png" alt="SmartParking" style={{ width: 56, height: 56, borderRadius: 16, objectFit: 'contain', margin: '0 auto 16px', display: 'block' }} />
           <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Smart Parking</h1>
           <p style={{ fontSize: 14, color: 'var(--muted)' }}>Admin Panel — Sign in to continue</p>
         </div>
@@ -104,7 +98,7 @@ export default function Login() {
 
             <button type="submit" disabled={loading} style={{
               padding: '12px', borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-              background: loading ? 'var(--border)' : 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              background: loading ? 'var(--border)' : 'var(--accent)',
               color: '#fff', fontSize: 14, fontWeight: 600, marginTop: 4,
               transition: 'opacity 0.15s', opacity: loading ? 0.7 : 1,
             }}>
@@ -113,9 +107,6 @@ export default function Login() {
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 24 }}>
-          Smart Parking System — CI230004
-        </p>
       </div>
     </div>
   )

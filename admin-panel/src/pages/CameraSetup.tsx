@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { Camera, Plus, RefreshCw, Trash2, Wifi, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { db } from "../config/firebaseConfig";
 
 interface CameraDoc {
@@ -36,6 +37,7 @@ const BOX_COLORS = ["#4f8ef7", "#22c55e", "#f59e0b"];
 const EMPTY_FORM = { id: "", label: "", spots: "", lotId: "" };
 
 export default function CameraSetup() {
+  const isMobile = useIsMobile();
   const [cameras, setCameras]             = useState<CameraDoc[]>([]);
   const [activeCamIdx, setActiveCamIdx]   = useState(0);
   const [online, setOnline]               = useState<boolean | null>(null);
@@ -243,7 +245,7 @@ export default function CameraSetup() {
   };
 
   return (
-    <div style={{ padding: 32 }}>
+    <div style={{ padding: isMobile ? 16 : 32 }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
@@ -300,7 +302,8 @@ export default function CameraSetup() {
         <>
           {/* Info bar */}
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
+            display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: 12,
             background: "var(--bg2)", border: "1px solid var(--border)",
             borderRadius: 10, padding: "12px 20px", marginBottom: 20,
           }}>
@@ -468,7 +471,7 @@ export default function CameraSetup() {
         }}>
           <div style={{
             background: "var(--bg2)", border: "1px solid var(--border)",
-            borderRadius: 14, padding: 28, width: 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            borderRadius: 14, padding: 28, width: isMobile ? "90vw" : 420, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
           }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--text)", marginBottom: 20 }}>
               Add Camera

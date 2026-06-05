@@ -1,6 +1,7 @@
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Activity, Camera, Car, TrendingUp, Users } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useIsMobile } from "../hooks/useIsMobile";
 import {
   CartesianGrid,
   Line,
@@ -66,6 +67,7 @@ const stripLot = (spotId: string) =>
   spotId.includes("_") ? spotId.split("_").slice(1).join("_") : spotId;
 
 export default function Dashboard() {
+  const isMobile = useIsMobile();
   const [spots, setSpots]             = useState<Spot[]>([]);
   const [sessions, setSessions]       = useState<Session[]>([]);
   const [users, setUsers]             = useState<User[]>([]);
@@ -149,9 +151,9 @@ export default function Dashboard() {
   const spotBorder = (s: string) => s === "occupied" ? "rgba(239,68,68,0.4)"  : s === "disabled" ? "rgba(107,122,153,0.4)"  : "rgba(34,197,94,0.4)";
 
   return (
-    <div style={{ padding: 32 }}>
+    <div style={{ padding: isMobile ? 16 : 32 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text)" }}>Dashboard</h1>
           <p style={{ fontSize: 14, color: "var(--muted)", marginTop: 4 }}>Live overview of Smart Parking System</p>
@@ -170,7 +172,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
         <StatCard icon={Car}       label="Occupied Spots"    value={occupied}                  sub={`${available} available`} color="var(--accent)"  />
         <StatCard icon={Activity}  label="Active Sessions"   value={activeSess}                color="var(--amber)"  />
         <StatCard icon={TrendingUp} label="Total Revenue"    value={`RM ${totalRev.toFixed(2)}`} color="var(--green)"  />
@@ -178,7 +180,7 @@ export default function Dashboard() {
       </div>
 
       {/* Spot Occupancy Grid + Revenue Trend */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
         {/* Spot grid */}
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 20 }}>Spot Occupancy</h3>
@@ -240,7 +242,7 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
         {/* Camera Status */}
         <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 16 }}>Camera Status</h3>

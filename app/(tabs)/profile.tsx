@@ -21,7 +21,7 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await signOut();
-              router.replace('/(tabs)');
+              router.replace('/auth/login');
             } catch (error) {
               Alert.alert('Error', 'Failed to logout. Please try again.');
             }

@@ -1,6 +1,7 @@
 import { collection, onSnapshot } from 'firebase/firestore'
 import { Activity, Clock, DollarSign, ParkingCircle } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useIsMobile } from '../hooks/useIsMobile'
 import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -72,6 +73,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color }: any) => (
 )
 
 export default function Analytics() {
+  const isMobile = useIsMobile()
   const [sessions, setSessions]       = useState<Session[]>([])
   const [spots, setSpots]             = useState<Spot[]>([])
   const [lots, setLots]               = useState<LotOption[]>([])
@@ -197,14 +199,14 @@ export default function Analytics() {
   )
 
   return (
-    <div style={{ padding: 32 }}>
+    <div style={{ padding: isMobile ? 16 : 32 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Analytics</h1>
           <p style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4 }}>Parking system performance overview</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Facility selector */}
           <select
             value={selectedLot}
@@ -228,7 +230,7 @@ export default function Analytics() {
       </div>
 
       {/* 4 Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
         <StatCard icon={DollarSign}   label="Total Revenue"   value={`RM ${totalRevenue.toFixed(2)}`} color="var(--green)"   />
         <StatCard icon={Activity}     label="Total Sessions"  value={completed.length} sub={`${completed.length} completed`} color="var(--accent)"  />
         <StatCard icon={Clock}        label="Avg Duration"    value={fmtMin(avgDuration)} sub="per session"                  color="var(--amber)"   />
@@ -236,7 +238,7 @@ export default function Analytics() {
       </div>
 
       {/* Charts row 1 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
         {/* Chart 1: Revenue by day */}
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Revenue by Day</h3>
@@ -281,7 +283,7 @@ export default function Analytics() {
       </div>
 
       {/* Charts row 2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginTop: 16 }}>
         {/* Chart 3: Peak usage hours */}
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Peak Usage Hours</h3>

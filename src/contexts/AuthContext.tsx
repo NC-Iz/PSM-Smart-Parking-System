@@ -1,9 +1,9 @@
 // File: src/contexts/AuthContext.tsx
 
 import { signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDocFromServer, updateDoc } from "firebase/firestore";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Alert, Platform } from "react-native";
 import { auth, db } from "../config/firebaseConfig";
 
 import * as Device from "expo-device";
@@ -101,11 +101,15 @@ const registerPushToken = async (uid: string): Promise<void> => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Tracks the UID that the latest onAuthStateChanged fired with.
+  // When signOut fires onAuthStateChanged(null) this becomes null immediately,
+  // so any in-flight getDocFromServer callback can detect it is stale.
+  const expectedUid = useRef<string | null>(null);
 
   // Fetch user data from Firestore
   const fetchUserData = async (uid: string): Promise<UserData | null> => {
     try {
-      const userDoc = await getDocFromServer(doc(db, "users", uid));
+      const userDoc = await getDoc(doc(db, "users", uid));
       if (userDoc.exists()) {
         return userDoc.data() as UserData;
       }
@@ -137,16 +141,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to auth state changes
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Tear down any previous snapshot listener
+      unsubscribeSnapshot?.();
+      unsubscribeSnapshot = null;
+
+      expectedUid.current = firebaseUser?.uid ?? null;
+
       if (firebaseUser) {
+        setLoading(true);
         const userData = await fetchUserData(firebaseUser.uid);
+        if (expectedUid.current !== firebaseUser.uid) return;
+        if (userData && !userData.isActive) {
+          await firebaseSignOut(auth);
+          setUser(null);
+          setLoading(false);
+          Alert.alert("Account Suspended", "Your account has been suspended. Please contact support.");
+          return;
+        }
         if (userData) {
           setUser(userData);
-          // Register push token after successful login
-          await registerPushToken(firebaseUser.uid);
         } else {
-          // Firestore doc not written yet (race condition during registration)
-          // Use Firebase Auth data as fallback
           setUser({
             uid: firebaseUser.uid,
             fullName: firebaseUser.displayName || "",
@@ -158,15 +175,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             totalBookings: 0,
             isActive: true,
           });
-          await registerPushToken(firebaseUser.uid);
         }
+        setLoading(false);
+        registerPushToken(firebaseUser.uid);
+
+        // Real-time listener — kicks user out immediately if suspended while logged in
+        unsubscribeSnapshot = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
+          if (snap.exists() && snap.data().isActive === false) {
+            firebaseSignOut(auth);
+            setUser(null);
+            Alert.alert("Account Suspended", "Your account has been suspended. Please contact support.");
+          } else if (snap.exists()) {
+            setUser(snap.data() as UserData);
+          }
+        });
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      unsubscribeSnapshot?.();
+    };
   }, []);
 
   return (

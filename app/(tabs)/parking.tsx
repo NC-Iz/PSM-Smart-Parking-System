@@ -122,7 +122,8 @@ export default function ActiveParkingScreen() {
       },
     );
     return () => unsubscribe();
-  }, [user, refreshUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid, refreshUser]);
 
   useEffect(() => {
     if (!session) return;

@@ -1,4 +1,5 @@
 const functions = require("firebase-functions");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 const axios = require("axios");
 
@@ -48,7 +49,18 @@ async function sendPushNotification(userId, title, body) {
 // ──────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────
-// FUNCTION 1: createBill
+// FUNCTION 1: onNotificationCreated
+// Fires whenever a new document is added to the notifications collection
+// Sends a push notification to the user automatically
+// ─────────────────────────────────────────────────────────
+exports.onNotificationCreated = onDocumentCreated("notifications/{notificationId}", async (event) => {
+    const data = event.data?.data();
+    if (!data?.userId || !data?.title || !data?.message) return;
+    await sendPushNotification(data.userId, data.title, data.message);
+  });
+
+// ─────────────────────────────────────────────────────────
+// FUNCTION 2: createBill
 // Called by mobile app when user taps Top Up
 // Creates a Toyyibpay bill and returns the payment URL
 // ─────────────────────────────────────────────────────────
@@ -274,32 +286,23 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // In-app notification
-    const notifRef = db.collection("notifications").doc(`notif_${Date.now()}`);
-    batch.set(notifRef, {
-      userId: userId,
-      type: "payment",
-      title: "Top Up Successful",
-      message: `RM ${amountRM.toFixed(2)} has been added to your Smart Parking wallet. Reference: ${refNo}`,
-      read: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
     await batch.commit();
 
     console.log(`✅ Wallet updated: +RM ${amountRM} for user ${userId}`);
     console.log(`✅ Transaction recorded: ${transactionId}`);
 
-    // Push notification
-    await sendPushNotification(
-      userId,
-      "Top Up Successful 💰",
-      `RM ${amountRM.toFixed(2)} has been added to your Smart Parking wallet.`,
-    );
-
-    // Low balance warning — threshold RM5
     const updatedUser = await db.collection("users").doc(userId).get();
     const newBalance = updatedUser.data()?.walletBalance ?? 0;
+
+    // Top up notification with new balance
+    await db.collection("notifications").doc(`notif_${Date.now()}`).set({
+      userId: userId,
+      type: "payment",
+      title: "Top Up Successful",
+      message: `RM ${amountRM.toFixed(2)} has been added to your wallet. Your new balance is RM ${newBalance.toFixed(2)}.`,
+      read: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
     if (newBalance < 5) {
       await db.collection("notifications").add({
         userId: userId,
@@ -309,13 +312,6 @@ exports.paymentCallback = functions.https.onRequest(async (req, res) => {
         read: false,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-
-      // Push notification for low balance
-      await sendPushNotification(
-        userId,
-        "Low Wallet Balance ⚠️",
-        `Your balance is RM ${newBalance.toFixed(2)}. Please top up soon.`,
-      );
 
       console.log(
         `⚠️ Low balance warning sent to user ${userId} (RM ${newBalance.toFixed(2)})`,
