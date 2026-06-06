@@ -47,6 +47,15 @@ export default function ActiveParkingScreen() {
   const [duration, setDuration] = useState("0 Hours");
 
   const creatingSession = useRef(false);
+  // Caches the resolved session for the current spot so repeated spot writes
+  // (vision server main poll + burst reads) never trigger a second getActiveSession
+  // query — whose propagation lag could otherwise create a duplicate session.
+  const knownSessionRef = useRef<{
+    spotId: string;
+    sessionId: string;
+    startTime: Date;
+    locationName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!user || !user.licensePlate) {
@@ -56,73 +65,96 @@ export default function ActiveParkingScreen() {
     const unsubscribe = subscribeToOccupiedSpotByPlate(
       user.licensePlate,
       async (userSpot: ParkingSpot | null) => {
-        if (userSpot) {
-          const lot = await getParkingLot(userSpot.lotId);
-          const locationName = lot?.name ?? userSpot.lotId;
-          let sessionId = "";
-          let startTime = new Date();
-          let rate = 2.0;
-          try {
-            const activeSession = await getActiveSession(user.uid);
-            if (activeSession) {
-              sessionId = activeSession.sessionId;
-              startTime = activeSession.startTime?.toDate
-                ? activeSession.startTime.toDate()
-                : new Date();
-              rate = activeSession.hourlyRate ?? 2.0;
-            } else if (!creatingSession.current) {
-              creatingSession.current = true;
-              try {
-                const lot = await getParkingLot(userSpot.lotId);
-                if (lot) rate = lot.pricing.hourlyRate;
-              } catch { }
-              try {
-                sessionId = await createParkingSession(
-                  user.uid,
-                  userSpot.spotId,
-                  userSpot.licensePlate || user.licensePlate,
-                  "anpr",
-                  rate,
-                );
-              } finally {
-                creatingSession.current = false;
-              }
-              startTime = new Date();
-            } else {
-              return;
-            }
-          } catch {
-            creatingSession.current = false;
-            sessionId = `session_${userSpot.spotId}_${Date.now()}`;
-          }
-          setHourlyRate(rate);
-          setSession((prev) => {
-            if (
-              prev &&
-              prev.sessionId === sessionId &&
-              prev.spotId === userSpot.spotId
-            )
-              return prev;
-            return {
-              sessionId,
-              spotId: userSpot.spotId,
-              spotNumber: userSpot.spotNumber,
-              licensePlate: userSpot.licensePlate || user.licensePlate,
-              startTime,
-              lotId: userSpot.lotId,
-              locationName,
-            };
-          });
-          setLoading(false);
-        } else {
+        // Car left — clear caches and reset UI.
+        if (!userSpot) {
+          knownSessionRef.current = null;
+          creatingSession.current = false;
           setSession(null);
           setLoading(false);
           refreshUser();
+          return;
+        }
+
+        // We already resolved the session for this spot — just sync the UI.
+        // Avoids re-querying Firestore on every repeated spot write.
+        const known = knownSessionRef.current;
+        if (known && known.spotId === userSpot.spotId) {
+          setSession((prev) => {
+            if (prev && prev.sessionId === known.sessionId) return prev;
+            return {
+              sessionId: known.sessionId,
+              spotId: userSpot.spotId,
+              spotNumber: userSpot.spotNumber,
+              licensePlate: userSpot.licensePlate || user.licensePlate,
+              startTime: known.startTime,
+              lotId: userSpot.lotId,
+              locationName: known.locationName,
+            };
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Another callback is already resolving/creating — skip this one.
+        // Guard is set synchronously (no await before it) so concurrent
+        // callbacks can never both pass.
+        if (creatingSession.current) return;
+        creatingSession.current = true;
+
+        try {
+          const lot = await getParkingLot(userSpot.lotId);
+          const locationName = lot?.name ?? userSpot.lotId;
+          let rate = lot?.pricing?.hourlyRate ?? 2.0;
+          let sessionId: string;
+          let startTime: Date;
+
+          const activeSession = await getActiveSession(user.uid);
+          if (activeSession) {
+            sessionId = activeSession.sessionId;
+            startTime = activeSession.startTime?.toDate
+              ? activeSession.startTime.toDate()
+              : new Date();
+            rate = activeSession.hourlyRate ?? rate;
+          } else {
+            sessionId = await createParkingSession(
+              user.uid,
+              userSpot.spotId,
+              userSpot.licensePlate || user.licensePlate,
+              "anpr",
+              rate,
+            );
+            startTime = new Date();
+          }
+
+          knownSessionRef.current = {
+            spotId: userSpot.spotId,
+            sessionId,
+            startTime,
+            locationName,
+          };
+
+          setHourlyRate(rate);
+          setSession({
+            sessionId,
+            spotId: userSpot.spotId,
+            spotNumber: userSpot.spotNumber,
+            licensePlate: userSpot.licensePlate || user.licensePlate,
+            startTime,
+            lotId: userSpot.lotId,
+            locationName,
+          });
+          setLoading(false);
+        } catch (e) {
+          // Leave knownSessionRef unset so the next callback retries cleanly.
+          console.error("Failed to resolve parking session:", e);
+          setLoading(false);
+        } finally {
+          creatingSession.current = false;
         }
       },
     );
     return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, refreshUser]);
 
   useEffect(() => {
@@ -317,9 +349,7 @@ export default function ActiveParkingScreen() {
           <View style={styles.chargesCard}>
             <View style={styles.chargeRow}>
               <Text style={styles.chargeLabel}>Rate per Hour</Text>
-              <Text style={styles.chargeValue}>
-                RM {hourlyRate.toFixed(2)}
-              </Text>
+              <Text style={styles.chargeValue}>RM {hourlyRate.toFixed(2)}</Text>
             </View>
             <View style={styles.chargeRow}>
               <Text style={styles.chargeLabel}>Duration</Text>
@@ -380,18 +410,6 @@ export default function ActiveParkingScreen() {
               <Text style={styles.topUpShortcutText}>Top Up Wallet</Text>
             </TouchableOpacity>
           )}
-          <View style={styles.sessionInfo}>
-            <Text style={styles.sessionInfoText}>
-              💡 Tap End Parking to manually end your session and pay
-            </Text>
-            <Text style={styles.sessionInfoText}>
-              🔄 Session will also end automatically when you exit through the
-              gate
-            </Text>
-            <Text style={styles.sessionInfoText}>
-              📍 Detected at {session.spotNumber} by ESP32-CAM
-            </Text>
-          </View>
         </View>
       </ScrollView>
     </View>
@@ -594,18 +612,4 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   topUpShortcutText: { color: "#3498db", fontSize: 15, fontWeight: "600" },
-  sessionInfo: {
-    backgroundColor: "#fff",
-    borderRadius: 15,
-    padding: 15,
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  sessionInfoText: {
-    fontSize: 12,
-    color: "#7f8c8d",
-    textAlign: "center",
-    marginBottom: 8,
-    lineHeight: 18,
-  },
 });

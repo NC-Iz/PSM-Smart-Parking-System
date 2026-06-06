@@ -48,9 +48,6 @@ parking-vision/debug_images/
 parking-vision/serviceAccountKey.json
 parking-vision/*.jpg
 
-# sensitive config
-google-services.json
-
 # admin panel build output
 admin-panel/dist/
 

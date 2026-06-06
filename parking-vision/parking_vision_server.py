@@ -777,13 +777,20 @@ def end_parking_session(spot_id, spot_number, lot_id=None):
         sessions = db.collection("parkingSessions") \
             .where("spotId", "==", spot_id) \
             .where("status", "==", "active") \
-            .limit(1).get()
+            .get()
 
         if not sessions:
             print(f"  [SESSION] ⚠ No active session found for spot {spot_number}")
             return
 
-        session_doc  = sessions[0]
+        # Safety net: if duplicate active sessions exist for this spot, charge
+        # only the earliest one and close the rest as duplicates (no charge).
+        session_docs = sorted(sessions, key=lambda d: d.to_dict().get("startTime") or datetime.max.replace(tzinfo=timezone.utc))
+        session_doc  = session_docs[0]
+        duplicates   = session_docs[1:]
+        if duplicates:
+            print(f"  [SESSION] ⚠ Found {len(duplicates)} duplicate active session(s) for spot {spot_number} — closing without charge")
+
         session_data = session_doc.to_dict()
         session_id   = session_doc.id
         user_id      = session_data["userId"]
@@ -854,6 +861,17 @@ def end_parking_session(spot_id, spot_number, lot_id=None):
             "read":      False,
             "createdAt": firestore.SERVER_TIMESTAMP,
         })
+
+        # Close any duplicate active sessions with no charge so they don't stay stuck
+        for dup in duplicates:
+            batch.update(db.collection("parkingSessions").document(dup.id), {
+                "endTime":       firestore.SERVER_TIMESTAMP,
+                "status":        "completed",
+                "duration":      duration_mins,
+                "fee":           0,
+                "paymentStatus": "duplicate",
+            })
+
         batch.commit()
         print(f"  [SESSION] ✓ Session ended: {session_id} — {hours}h {mins}m — RM {fee:.2f} deducted")
     except Exception as e:

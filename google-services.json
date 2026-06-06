@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "880528409042",
+    "project_id": "smartparkingsystem-dd7ce",
+    "storage_bucket": "smartparkingsystem-dd7ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:880528409042:android:0fa6d37f9108157d49480b",
+        "android_client_info": {
+          "package_name": "com.faizamin.smartparkingsystem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_WEXCQGFQftckDKNfn2lfPkRUdj9hlsM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
